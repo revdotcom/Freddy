@@ -436,12 +436,12 @@ public struct JSONParser {
 
         throw Error.endOfStreamUnexpected
     }
-
+    
     private mutating func decodeIntegralValue(_ parser: NumberParser) throws -> JSON {
         var sign = Sign.positive
         var parser = parser
-        var value = 0
-
+        var value: IntMax = 0
+        
         // This would be more natural as `while true { ... }` with a meaningful .Done case,
         // but that causes compile time explosion in Swift 2.2. :-|
         while parser.state != .done {
@@ -449,40 +449,44 @@ public struct JSONParser {
             case .leadingMinus:
                 sign = .negative
                 try parser.parseNegative()
-
+                
             case .leadingZero:
                 parser.parseLeadingZero()
-
+                
             case .preDecimalDigits:
                 try parser.parsePreDecimalDigits { c in
-                    guard case let (exponent, false) = Int.multiplyWithOverflow(10, value) else {
+                    guard case let (exponent, false) = IntMax.multiplyWithOverflow(10, value) else {
                         throw InternalError.numberOverflow(offset: parser.start)
                     }
                     
-                    guard case let (newValue, false) = Int.addWithOverflow(exponent, Int(c - Literal.zero)) else {
+                    guard case let (newValue, false) = IntMax.addWithOverflow(exponent, IntMax(c - Literal.zero)) else {
                         throw InternalError.numberOverflow(offset: parser.start)
                     }
                     
                     value = newValue
                 }
-
+                
             case .decimal, .exponent:
                 return try detectingFloatingPointErrors(start: parser.start) {
                     try decodeFloatingPointValue(parser, sign: sign, value: Double(value))
                 }
-
+                
             case .postDecimalDigits, .exponentSign, .exponentDigits:
                 assertionFailure("Invalid internal state while parsing number")
-
+                
             case .done:
                 fatalError("impossible condition")
             }
         }
-
-        guard case let (signedValue, false) = Int.multiplyWithOverflow(sign.rawValue, value) else {
+        
+        guard let intValue = Int(exactly: value) else {
             throw InternalError.numberOverflow(offset: parser.start)
         }
-
+        
+        guard case let (signedValue, false) = Int.multiplyWithOverflow(sign.rawValue, intValue) else {
+            throw InternalError.numberOverflow(offset: parser.start)
+        }
+        
         loc = parser.loc
         return .int(signedValue)
     }
