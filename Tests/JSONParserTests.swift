@@ -208,6 +208,16 @@ class JSONParserTests: XCTestCase {
             }
         }
     }
+    
+    func testThatParserHandlesLongFloats() {
+        do {
+            // a bit bigger than max In32 before the decimal point
+            let value = try JSONFromString("2147483649.12").double()
+            XCTAssertEqualWithAccuracy(value, 2147483649.12, accuracy: DBL_EPSILON)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
 
     func testParserHandlingOfNumericOverflow() {
         for string in [
